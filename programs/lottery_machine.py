@@ -23,7 +23,7 @@ class LotteryMachine:
             f.write("\n".join(map(str,self.balls_drawn)))
 
     def __str__(self):
-        return "BingoMachine(balls={}, balls_drawn={}, balls_left={})".format(
+        return "LotteryMachine(balls={}, balls_drawn={}, balls_left={})".format(
             self.balls, self.balls_drawn, self.balls_left)
 def main():
     lotteryMachine = LotteryMachine(list(range(1,76)))
