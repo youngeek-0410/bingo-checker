@@ -11,6 +11,23 @@ def get_contours(gray_img):
     return contours
 
 
+def get_max_contour(contours):
+    """
+    与えられた輪郭の中で最大領域である輪郭とその面積を返す
+    """
+    if not contours:
+        return None, 0
+
+    max_contour = contours[0]
+    max_area = 0
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area > max_area:
+            max_contour = contour
+            max_area = area
+    return max_contour, max_area
+
+
 def mask_img(img, min_hue, max_hue, saturation_threshold):
     """
     画像をhsvに変換して、hue(色相)とsaturation(彩度)でマスクする
@@ -41,6 +58,7 @@ def main():
 
     while(True):
         ret, color_img = cap.read()
+        origin_color_img = color_img.copy()
         if not ret:
             continue
 
@@ -48,7 +66,9 @@ def main():
                         SATURATION_THRESHOLD)
 
         contours = get_contours(mask)
-        max_contour = max(contours, key=cv2.contourArea)
+        max_contour, _ = get_max_contour(contours)
+        if max_contour is None:
+            continue
 
         """四角形の枠をラップ"""
         cv2.drawContours(color_img, [max_contour], 0, RED, LINE_WIDTH)
@@ -61,14 +81,16 @@ def main():
         rect = cv2.minAreaRect(max_contour)
         box = np.int0(cv2.boxPoints(rect))
         cv2.drawContours(color_img, [box], 0, BLUE, LINE_WIDTH)
+        cv2.imshow("color_img", color_img)
 
         """透視変換"""
-        dst_points = np.array(
-            [[0, 0], [450, 0], [0, 450], [450, 450]], np.float32)
         src_points = np.array((box[1], box[2], box[0], box[3]), np.float32)
-        dst = np.array((450, 450))
+        bingo_card_size = (400, 500)
+        dst_points = np.array([[0, 0], [bingo_card_size[0], 0], [0, bingo_card_size[1]], [
+            bingo_card_size[0], bingo_card_size[1]]], np.float32)
+        dst = np.array(bingo_card_size)
         M = cv2.getPerspectiveTransform(src_points, dst_points)
-        warp = cv2.warpPerspective(color_img, M, dst)
+        warp = cv2.warpPerspective(origin_color_img, M, dst)
         cv2.imshow("bingo_card", warp)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
