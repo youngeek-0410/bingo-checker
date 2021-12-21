@@ -15,7 +15,7 @@
     "python.venvPath": ".venv",
     "python.pipenvPath": "/usr/local/bin/pipenv",
     "python.linting.pylintEnabled": true,
-    "python.linting.pep8Enabled": false,
+    "python.linting.pycodestyleEnabled": false,
     "python.linting.mypyEnabled": true,
     "python.linting.flake8Enabled": true,
     "python.linting.flake8Args": [

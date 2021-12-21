@@ -11,50 +11,68 @@ def get_contours(gray_img):
     return contours
 
 
-def get_max_contour(contours):
+def mask_img(img, min_hue, max_hue, saturation_threshold):
     """
-    与えられた輪郭の中で最大領域である輪郭とその面積を返す
+    画像をhsvに変換して、hue(色相)とsaturation(彩度)でマスクする
     """
-    max_contour = contours[0]
-    max_area = 0
-    for contour in contours:
-        area = cv2.contourArea(contour)
-        if area > max_area:
-            max_contour = contour
-            max_area = area
-    return max_contour, max_area
+    img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    hue = img_hsv[:, :, 0]
+    saturation = img_hsv[:, :, 1]
+    mask = np.zeros(hue.shape, np.uint8)
+    mask[(min_hue < hue) & (hue < max_hue) & (
+        saturation > saturation_threshold)] = 255
+    return mask
 
 
 def main():
-    capture = cv2.VideoCapture(0)
+    LINE_WIDTH = 3
+    RED = (0, 0, 255)
+    GREEN = (0, 255, 0)
+    BLUE = (255, 0, 0)
+
+    BLUE_MIN_HUE = 90
+    BLUE_MAX_HUE = 135
+    SATURATION_THRESHOLD = 128
+
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+
     while(True):
-        _, bingo_color_img = capture.read()
-        cv2.imshow('bingo', bingo_color_img)
-        bingo_gray_img = cv2.cvtColor(bingo_color_img, cv2.COLOR_BGR2GRAY)
-        # threshold(sudoku_gray, それ以上を最大値にする閾値, 指定する最大値, cv2.THRESH_BINARY_INV)
-        _, bingo_gray_inverse_img = cv2.threshold(
-            bingo_gray_img, 150, 255, cv2.THRESH_BINARY_INV)
+        ret, color_img = cap.read()
+        if not ret:
+            continue
 
-        # 最大輪郭抽出
-        contours = get_contours(bingo_gray_inverse_img)
-        max_contour, max_area = get_max_contour(contours)
-        print(max_contour)
+        mask = mask_img(color_img, BLUE_MIN_HUE, BLUE_MAX_HUE,
+                        SATURATION_THRESHOLD)
 
-        # 四角形で近似
-        epsilon = 0.1 * cv2.arcLength(contours, True)
-        approx = cv2.approxPolyDP(contours, epsilon, True)
+        contours = get_contours(mask)
+        max_contour = max(contours, key=cv2.contourArea)
 
-        merged_img = np.hstack(
-            (bingo_color_img, bingo_gray_img, bingo_gray_inverse_img))
-        cv2.imshow("merged_img", merged_img)
+        """四角形の枠をラップ"""
+        cv2.drawContours(color_img, [max_contour], 0, RED, LINE_WIDTH)
 
-        # 正方形に透視変換
-        # M = cv2.getPerspectiveTransform(pts1, pts2) # 透視変換行列
-        # warp = cv2.warpPerspective(src, M, dst)
-        # ret, warp_bin = cv2.threshold(warp, 150, 255, cv2.THRESH_BINARY)
+        # 単純な外接矩形
+        x, y, w, h = cv2.boundingRect(max_contour)
+        cv2.rectangle(color_img, (x, y), (x + w, y + h), GREEN, LINE_WIDTH)
+
+        # 傾きを考慮した外接矩形
+        rect = cv2.minAreaRect(max_contour)
+        box = np.int0(cv2.boxPoints(rect))
+        cv2.drawContours(color_img, [box], 0, BLUE, LINE_WIDTH)
+
+        """透視変換"""
+        dst_points = np.array(
+            [[0, 0], [450, 0], [0, 450], [450, 450]], np.float32)
+        src_points = np.array((box[1], box[2], box[0], box[3]), np.float32)
+        dst = np.array((450, 450))
+        M = cv2.getPerspectiveTransform(src_points, dst_points)
+        warp = cv2.warpPerspective(color_img, M, dst)
+        cv2.imshow("bingo_card", warp)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
-            capture.release()
+            cap.release()
             break
 
 
