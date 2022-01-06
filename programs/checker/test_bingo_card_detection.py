@@ -99,7 +99,8 @@ def main():
     cap.set(cv2.CAP_PROP_FPS, 30)
 
     bingo_card_list = [[[] for _ in range(5)] for _ in range(5)]
-    for _ in range(3):
+    is_check = False
+    while True:
         ret, color_img = cap.read()
         origin_color_img = color_img.copy()
         if not ret:
@@ -125,7 +126,7 @@ def main():
         rect = cv2.minAreaRect(max_contour)
         box = np.int0(cv2.boxPoints(rect))
         cv2.drawContours(color_img, [box], 0, BLUE, LINE_WIDTH)
-        # cv2.imshow("color_img", color_img)
+        cv2.imshow("color_img", color_img)
 
         """透視変換"""
         # 左上=box[0] 右上=box[1] 右下=box[2] 左下=box[3] (左上を0,0とする)
@@ -136,26 +137,35 @@ def main():
         dst = np.array(bingo_card_size)
         M = cv2.getPerspectiveTransform(src_points, dst_points)
         warp = cv2.warpPerspective(origin_color_img, M, dst)
-
-        """端を切り捨てる"""
         bingo_card_crop = warp[50:450, 50:450]
-        # cv2.imshow("bingo_card_crop", bingo_card_crop)
-        for row in range(5):
-            for col in range(5):
-                num = tools[0].image_to_string(
-                    cv2pil(bingo_card_crop[row * 80:row *
-                           80 + 80, col * 80:col * 80 + 80]),
-                    lang="eng",
-                    builder=builder
-                )
-                bingo_card_list[row][col].append(num)
-        # if cv2.waitKey(1) & 0xFF == ord('q'):
-        #     cap.release()
-        #     break
+        cv2.imshow("bingo_card_crop", bingo_card_crop)
+
+        """OCRを用いてリスト化"""
+        if is_check:
+            for row in range(5):
+                for col in range(5):
+                    num = tools[0].image_to_string(
+                        cv2pil(bingo_card_crop[row * 80:row *
+                                               80 + 80, col * 80:col * 80 + 80]),
+                        lang="eng",
+                        builder=builder
+                    )
+                    bingo_card_list[row][col].append(num)
+            if len(bingo_card_list[0][0]) == 3:
+                break
+
+        if cv2.waitKey(1) & 0xFF == ord('c'):  # check
+            is_check = True
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):  # quit
+            cap.release()
+            break
+
     for row in bingo_card_list:
         for col in row:
-            # print(statistics.mode(col), end=" ")
-            print(col, end=" ")
+            result = statistics.mode(col)
+            result = "x" if result == "" else result
+            print(result, end=" ")
         print()
 
 
