@@ -28,16 +28,19 @@ def get_max_contour(contours):
     return max_contour, max_area
 
 
-def mask_img(img, min_hue, max_hue, saturation_threshold):
+def mask_img_with_rgb(img, min_rgb, max_rgb):
     """
-    画像をhsvに変換して、hue(色相)とsaturation(彩度)でマスクする
+    画像をRGBに変換して、rgb(赤)でマスクする
     """
-    img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    hue = img_hsv[:, :, 0]
-    saturation = img_hsv[:, :, 1]
-    mask = np.zeros(hue.shape, np.uint8)
-    mask[(min_hue < hue) & (hue < max_hue) & (
-        saturation > saturation_threshold)] = 255
+    min_r, min_g, min_b = min_rgb
+    max_r, max_g, max_b = max_rgb
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    r = img_rgb[:, :, 0]
+    g = img_rgb[:, :, 1]
+    b = img_rgb[:, :, 2]
+    mask = np.zeros(r.shape, np.uint8)
+    mask[(min_r < r) & (r < max_r) & (min_g < g) & (
+        g < max_g) & (min_b < b) & (b < max_b)] = 255
     return mask
 
 
@@ -47,9 +50,8 @@ def main():
     GREEN = (0, 255, 0)
     BLUE = (255, 0, 0)
 
-    BLUE_MIN_HUE = 90
-    BLUE_MAX_HUE = 135
-    SATURATION_THRESHOLD = 128
+    WHITE_MIN_RGB = (130, 130, 130)
+    WHITE_MAX_RGB = (255, 255, 255)
 
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -62,9 +64,10 @@ def main():
         if not ret:
             continue
 
-        mask = mask_img(color_img, BLUE_MIN_HUE, BLUE_MAX_HUE,
-                        SATURATION_THRESHOLD)
-
+        mask = mask_img_with_rgb(
+            color_img,
+            WHITE_MIN_RGB,
+            WHITE_MAX_RGB,)
         contours = get_contours(mask)
         max_contour, _ = get_max_contour(contours)
         if max_contour is None:
@@ -84,10 +87,11 @@ def main():
         cv2.imshow("color_img", color_img)
 
         """透視変換"""
-        src_points = np.array((box[1], box[2], box[0], box[3]), np.float32)
+        # 左上=box[0] 右上=box[1] 右下=box[2] 左下=box[3] (左上を0,0とする)
+        src_points = np.array((box[0], box[1], box[2], box[3]), np.float32)
         bingo_card_size = (400, 500)
-        dst_points = np.array([[0, 0], [bingo_card_size[0], 0], [0, bingo_card_size[1]], [
-            bingo_card_size[0], bingo_card_size[1]]], np.float32)
+        dst_points = np.array([[0, 0], [bingo_card_size[0], 0], [bingo_card_size[0], bingo_card_size[1]], [
+            0, bingo_card_size[1]]], np.float32)
         dst = np.array(bingo_card_size)
         M = cv2.getPerspectiveTransform(src_points, dst_points)
         warp = cv2.warpPerspective(origin_color_img, M, dst)
