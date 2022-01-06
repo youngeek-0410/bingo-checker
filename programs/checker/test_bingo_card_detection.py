@@ -1,6 +1,25 @@
 import cv2
 import numpy as np
 
+from PIL import Image
+import pyocr
+import pyocr.builders
+
+import statistics
+
+
+def cv2pil(image):
+    ''' OpenCV型 -> PIL型 '''
+    new_image = image.copy()
+    if new_image.ndim == 2:  # モノクロ
+        pass
+    elif new_image.shape[2] == 3:  # カラー
+        new_image = cv2.cvtColor(new_image, cv2.COLOR_BGR2RGB)
+    elif new_image.shape[2] == 4:  # 透過
+        new_image = cv2.cvtColor(new_image, cv2.COLOR_BGRA2RGBA)
+    new_image = Image.fromarray(new_image)
+    return new_image
+
 
 def get_contours(gray_img):
     """
@@ -44,21 +63,43 @@ def mask_img_with_rgb(img, min_rgb, max_rgb):
     return mask
 
 
+def mask_img_with_hsv(img, min_hue, max_hue, min_sat, max_sat):
+    """
+    画像をhsvに変換して、hue(色相)とsaturation(彩度)でマスクする
+    """
+    img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    hue = img_hsv[:, :, 0]
+    saturation = img_hsv[:, :, 1]
+    mask = np.zeros(hue.shape, np.uint8)
+    mask[(min_hue < hue) & (hue < max_hue) & (
+        min_sat < saturation) & (saturation < max_sat)] = 255
+    return mask
+
+
 def main():
     LINE_WIDTH = 3
     RED = (0, 0, 255)
     GREEN = (0, 255, 0)
     BLUE = (255, 0, 0)
 
+    # BINGOカードの外枠の白色
     WHITE_MIN_RGB = (130, 130, 130)
     WHITE_MAX_RGB = (255, 255, 255)
+
+    tools = pyocr.get_available_tools()
+    if len(tools) == 0:
+        print("No OCR tool found")
+        return
+    builder = pyocr.builders.TextBuilder(tesseract_layout=6)
+    builder.tesseract_configs.append("digits")
 
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     cap.set(cv2.CAP_PROP_FPS, 30)
 
-    while(True):
+    bingo_card_list = [[[] for _ in range(5)] for _ in range(5)]
+    for _ in range(3):
         ret, color_img = cap.read()
         origin_color_img = color_img.copy()
         if not ret:
@@ -84,22 +125,38 @@ def main():
         rect = cv2.minAreaRect(max_contour)
         box = np.int0(cv2.boxPoints(rect))
         cv2.drawContours(color_img, [box], 0, BLUE, LINE_WIDTH)
-        cv2.imshow("color_img", color_img)
+        # cv2.imshow("color_img", color_img)
 
         """透視変換"""
         # 左上=box[0] 右上=box[1] 右下=box[2] 左下=box[3] (左上を0,0とする)
         src_points = np.array((box[0], box[1], box[2], box[3]), np.float32)
-        bingo_card_size = (400, 500)
+        bingo_card_size = (500, 500)
         dst_points = np.array([[0, 0], [bingo_card_size[0], 0], [bingo_card_size[0], bingo_card_size[1]], [
             0, bingo_card_size[1]]], np.float32)
         dst = np.array(bingo_card_size)
         M = cv2.getPerspectiveTransform(src_points, dst_points)
         warp = cv2.warpPerspective(origin_color_img, M, dst)
-        cv2.imshow("bingo_card", warp)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            cap.release()
-            break
+        """端を切り捨てる"""
+        bingo_card_crop = warp[50:450, 50:450]
+        # cv2.imshow("bingo_card_crop", bingo_card_crop)
+        for row in range(5):
+            for col in range(5):
+                num = tools[0].image_to_string(
+                    cv2pil(bingo_card_crop[row * 80:row *
+                           80 + 80, col * 80:col * 80 + 80]),
+                    lang="eng",
+                    builder=builder
+                )
+                bingo_card_list[row][col].append(num)
+        # if cv2.waitKey(1) & 0xFF == ord('q'):
+        #     cap.release()
+        #     break
+    for row in bingo_card_list:
+        for col in row:
+            # print(statistics.mode(col), end=" ")
+            print(col, end=" ")
+        print()
 
 
 if __name__ == "__main__":
