@@ -100,6 +100,7 @@ def main():
 
     bingo_card_list = [[[] for _ in range(5)] for _ in range(5)]
     is_check = False
+    CHECK_TIMES = 5
     while True:
         ret, color_img = cap.read()
         origin_color_img = color_img.copy()
@@ -138,20 +139,26 @@ def main():
         M = cv2.getPerspectiveTransform(src_points, dst_points)
         warp = cv2.warpPerspective(origin_color_img, M, dst)
         bingo_card_crop = warp[50:450, 50:450]
+        bingo_card_crop[80:400:80, :, :] = RED
+        bingo_card_crop[:, 80:400:80, :] = RED
         cv2.imshow("bingo_card_crop", bingo_card_crop)
 
         """OCRを用いてリスト化"""
         if is_check:
             for row in range(5):
                 for col in range(5):
-                    num = tools[0].image_to_string(
-                        cv2pil(bingo_card_crop[row * 80:row *
-                                               80 + 80, col * 80:col * 80 + 80]),
-                        lang="eng",
-                        builder=builder
-                    )
-                    bingo_card_list[row][col].append(num)
-            if len(bingo_card_list[0][0]) == 3:
+                    if row == 2 and col == 2:  # free
+                        bingo_card_list[row][col].append("FREE")
+                    else:
+                        num = tools[0].image_to_string(
+                            cv2pil(bingo_card_crop[row * 80:row *
+                                                   80 + 80, col * 80:col * 80 + 80]),
+                            lang="eng",
+                            builder=builder
+                        )
+                        if num != "":
+                            bingo_card_list[row][col].append(num)
+            if len(bingo_card_list[2][2]) == CHECK_TIMES:
                 break
 
         if cv2.waitKey(1) & 0xFF == ord('c'):  # check
@@ -163,9 +170,9 @@ def main():
 
     for row in bingo_card_list:
         for col in row:
-            result = statistics.mode(col)
+            result = statistics.mode(col).replace(".", "") if col else "x"
             result = "x" if result == "" else result
-            print(result, end=" ")
+            print("{:^6s}".format(result), end=" ")
         print()
 
 
