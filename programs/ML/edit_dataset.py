@@ -6,14 +6,14 @@ import uuid
 
 def make_valid_dataset():
     for num in range(1, 76):
-        files = glob.glob(f'.//{num}/*.jpg')
+        files = glob.glob(f'./train-dataset/{num}/*.jpg')
         os.makedirs(f"./valid-dataset/{num}", exist_ok=True)
         shutil.move(files[0], f'./valid-dataset/{num}/{uuid.uuid4()}.jpg')
         shutil.move(files[1], f'./valid-dataset/{num}/{uuid.uuid4()}.jpg')
-        shutil.move(files[2], f'./valid-dataset/{num}/{uuid.uuid4()}.jpg')
+        # shutil.move(files[2], f'./valid-dataset/{num}/{uuid.uuid4()}.jpg')
 
 
-def count_dataset(folder='train-dataset'):
+def count_dataset(folder='valid-dataset'):
     sum = 0
     for num in range(1, 76):
         files = glob.glob(f'./{folder}/{num}/*.jpg')
