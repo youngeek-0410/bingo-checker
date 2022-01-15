@@ -1,3 +1,5 @@
+"Usage: python -m checker.bingo_card_scan"
+
 import cv2
 import numpy as np
 
@@ -5,90 +7,9 @@ from PIL import Image
 import pyocr
 import pyocr.builders
 
-
-class Checker:
-    """
-    BINGO CHECKER
-
-    Attributes:
-    output_bingo_numbers (list): list of bingo numbers which already outputted in the game
-    """
-
-    def __init__(self):
-        self.output_bingo_numbers = []
-
-    def import_output_bingo_number(self) -> None:
-        ls = ["FREE"]
-        with open("./lottery_result.txt") as f:
-            for line in f:
-                ls.append(int(line))
-        self.output_bingo_numbers = ls
-
-    def check_bingo(self, bingo_card):
-        self.print_bingo_card(bingo_card)
-        self.import_output_bingo_number()
-        self.print_output_bingo_numbers()
-        binary_bingo_card = self.make_binary_bingo_card(bingo_card)
-        self.print_bingo_card(binary_bingo_card)
-        if self.check_binary_bingo_card(binary_bingo_card):
-            return True
-        return False
-
-    def make_binary_bingo_card(self, bingo_card):
-        binary_bingo_card = [[0] * 5 for _ in range(5)]
-        for i in range(5):
-            for j in range(5):
-                if bingo_card[i][j] in self.output_bingo_numbers:
-                    binary_bingo_card[i][j] = 1
-        return binary_bingo_card
-
-    def check_binary_bingo_card(self, binary_bingo_card):
-        for i in range(5):
-            if self.check_row(binary_bingo_card, i):
-                return True
-        for i in range(5):
-            if self.check_column(binary_bingo_card, i):
-                return True
-        if self.check_diagonal(binary_bingo_card):
-            return True
-        if self.check_anti_diagonal(binary_bingo_card):
-            return True
-        return False
-
-    def check_row(self, binary_bingo_card, row_index):
-        row = binary_bingo_card[row_index]
-        if row.count(1) == 5:
-            return True
-        return False
-
-    def check_column(self, binary_bingo_card, column_index):
-        column = [row[column_index] for row in binary_bingo_card]
-        if column.count(1) == 5:
-            return True
-        return False
-
-    def check_diagonal(self, binary_bingo_card):
-        diagonal = [binary_bingo_card[i][i] for i in range(5)]
-        if diagonal.count(1) == 5:
-            return True
-        return False
-
-    def check_anti_diagonal(self, binary_bingo_card):
-        anti_diagonal = [binary_bingo_card[i][4 - i] for i in range(5)]
-        if anti_diagonal.count(1) == 5:
-            return True
-        return False
-
-    def print_bingo_card(self, bingo_card_list):
-        for row in bingo_card_list:
-            for col in row:
-                print("{:^6s}".format(str(col)), end=" ")
-            print()
-        print()
-
-    def print_output_bingo_numbers(self):
-        print(self.output_bingo_numbers)
-        print()
+from .checker import Checker
+import time
+import sys
 
 
 class BingoCardScanner:
@@ -101,8 +22,13 @@ class BingoCardScanner:
     WHITE_MIN_RGB = (130, 130, 130)
     WHITE_MAX_RGB = (255, 255, 255)
 
-    def __init__(self, ocr_times=5):
+    def __init__(self, is_use_servo=False, ocr_times=5, servo_sleep_time=0.3):
         self.ocr_times = ocr_times
+        self.servo_sleep_time = servo_sleep_time
+        self.is_use_servo = is_use_servo
+        if is_use_servo:
+            from .servo import Servo
+            self.servo = Servo()
 
         # OCR
         tools = pyocr.get_available_tools()
@@ -263,7 +189,18 @@ class BingoCardScanner:
                 bingo_card_list = self.convert_to_list(bingo_card_crop)
                 # self.print_bingo_card_list(bingo_card_list)
                 is_bingo = Checker().check_bingo(bingo_card_list)
-                print(is_bingo)
+                if is_bingo:
+                    if self.is_use_servo:
+                        self.servo.set_angle(90)
+                        time.sleep(self.servo_sleep_time)
+                        self.servo.set_angle(0)
+                    print("BINGO")
+                else:
+                    if self.is_use_servo:
+                        self.servo.set_angle(-90)
+                        time.sleep(self.servo_sleep_time)
+                        self.servo.set_angle(0)
+                    print("NOT BINGO")
                 print()
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -278,5 +215,7 @@ class BingoCardScanner:
 
 
 if __name__ == "__main__":
-    bingo_card_scanner = BingoCardScanner()
+    args = sys.argv
+    is_use_servo = True if args[-1] == "use_servo" else False
+    bingo_card_scanner = BingoCardScanner(is_use_servo=is_use_servo)
     bingo_card_scanner.run()
