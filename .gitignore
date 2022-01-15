@@ -254,3 +254,6 @@ dmypy.json
 cython_debug/
 
 # End of https://www.toptal.com/developers/gitignore/api/python
+programs/ML/model/20220110-132613_model.h5
+
+lottery_result.txt
