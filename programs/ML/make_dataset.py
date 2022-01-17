@@ -165,12 +165,18 @@ class BingoCardScanner:
                         builder=self.ocr_builder
                     )
                     num = num.replace(".", "").replace("-", "")
-                    # num = "x" if num == "" else int(num)
-                    # if num != "x" and 1 <= num <= 75:
-                    # os.makedirs(f'./dataset/{num}', exist_ok=True)
-                    cv2.imwrite(f'./dataset/{uuid.uuid4()}.jpg',
-                                bingo_card_crop[row * 80:row * 80 + 80,
-                                                col * 80:col * 80 + 80])
+                    num = "x" if num == "" else int(num)
+                    if num != "x" and 1 <= num <= 75:
+                        os.makedirs(
+                            f'./unverified-dataset/{num}', exist_ok=True)
+                        cv2.imwrite(f'./unverified-dataset/{num}/{uuid.uuid4()}.jpg',
+                                    bingo_card_crop[row * 80:row * 80 + 80,
+                                                    col * 80:col * 80 + 80])
+                    else:
+                        os.makedirs(f'./unverified-dataset/x', exist_ok=True)
+                        cv2.imwrite(f'./unverified-dataset/x/{uuid.uuid4()}.jpg',
+                                    bingo_card_crop[row * 80:row * 80 + 80,
+                                                    col * 80:col * 80 + 80])
 
     def quit(self):
         self.cap.release()
