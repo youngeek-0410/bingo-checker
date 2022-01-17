@@ -10,6 +10,7 @@ import pyocr.builders
 from .checker import Checker
 import time
 import sys
+import tensorflow as tf
 
 
 class BingoCardScanner:
@@ -22,22 +23,45 @@ class BingoCardScanner:
     WHITE_MIN_RGB = (130, 130, 130)
     WHITE_MAX_RGB = (255, 255, 255)
 
-    def __init__(self, is_use_servo=False, ocr_times=5, servo_sleep_time=0.3):
+    # 使用するMLモデルのパス (日付 / モデル名)
+    LOAD_MODEL_FOLDER_NAME = "20220117-214848"
+    LOAD_MODEL_FILE_NAME = "weight-28-0.301-0.942-0.123-0.987.h5"
+
+    def __init__(
+            self,
+            is_use_servo=False,
+            ocr_times=5,
+            servo_sleep_time=0.3,
+            is_use_ocr=False):
         self.ocr_times = ocr_times
         self.servo_sleep_time = servo_sleep_time
+
         self.is_use_servo = is_use_servo
         if is_use_servo:
             from .servo import Servo
             self.servo = Servo()
 
         # OCR
-        tools = pyocr.get_available_tools()
-        if len(tools) == 0:
-            print("No OCR tool found")
-            return
-        self.ocr_tool = tools[0]
-        self.ocr_builder = pyocr.builders.TextBuilder(tesseract_layout=6)
-        self.ocr_builder.tesseract_configs.append("digits")
+        self.is_use_ocr = is_use_ocr
+        if is_use_ocr:
+            tools = pyocr.get_available_tools()
+            if len(tools) == 0:
+                print("No OCR tool found")
+                return
+            self.ocr_tool = tools[0]
+            self.ocr_builder = pyocr.builders.TextBuilder(tesseract_layout=6)
+            self.ocr_builder.tesseract_configs.append("digits")
+        else:
+            self.model = tf.keras.models.load_model(
+                f"./ML/models/{self.LOAD_MODEL_FOLDER_NAME}/{self.LOAD_MODEL_FILE_NAME}",
+                compile=False)
+            with open(f"./ML/models/{self.LOAD_MODEL_FOLDER_NAME}/class_labels.txt") as f:
+                self.class_labels = {
+                    int(k): v for line in f for (
+                        k, v) in [
+                        line.strip().split(
+                            None, 1)]}
+            print(self.class_labels)
 
         # Camera
         self.cap = cv2.VideoCapture(0)
@@ -162,16 +186,23 @@ class BingoCardScanner:
         bingo_card_list = [[None] * 5 for _ in range(5)]
         for row in range(5):
             for col in range(5):
+                img = bingo_card_crop[row * 80:row *
+                                      80 + 80, col * 80:col * 80 + 80]
                 if row == 2 and col == 2:  # free
                     bingo_card_list[row][col] = "FREE"
                 else:
-                    num = self.ocr_tool.image_to_string(
-                        self.cv2pil(bingo_card_crop[row * 80:row *
-                                                    80 + 80, col * 80:col * 80 + 80]),
-                        lang="eng",
-                        builder=self.ocr_builder
-                    )
-                    num = num.replace(".", "").replace("-", "")
+                    if self.is_use_ocr:
+                        num = self.ocr_tool.image_to_string(
+                            self.cv2pil(img),
+                            lang="eng",
+                            builder=self.ocr_builder
+                        )
+                        num = num.replace(".", "").replace("-", "")
+                    else:
+                        img = cv2.resize(img, (40, 40))
+                        num = self.class_labels[self.model.predict(img[None, ...])[
+                            0].argmax()]
+
                     bingo_card_list[row][col] = 0 if num == "" else int(num)
         return bingo_card_list
 
